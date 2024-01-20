@@ -7,7 +7,7 @@ from langchain.vectorstores import FAISS  # type: ignore
   
 DATA_PATH = "data/"
 DB_FAISS_PATH = "vectorstores/db_faiss"
-COHERE_API_KEY = "LoJUyMN5wpyIPOKSJulSlFFGWER5rhrYcxiWtRaz"
+
 
 def create_vector_db():
     loader = DirectoryLoader(DATA_PATH, glob='*.pdf', loader_cls=PyPDFLoader)
