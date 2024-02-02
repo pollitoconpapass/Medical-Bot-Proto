@@ -9,7 +9,3 @@ Napaykuy, Runa! 👋 Allin hamusqayki Qhaliman, yuyaysapa hampi diagnóstico cha
 
 - **Web Page:** Get started with our business idea [Qhali Official Web Page](https://qhali.pe/) 🌐
 - **Página Web:** Qallariy negocio yuyayniykuwan [Qhali Web Oficial Página](https://qhali.pe/) 🌐
-
-
-## Please wait... Making qeue in triage...
-## Ama hina kaspa suyay... Triage nisqapi filata ruwaspa...

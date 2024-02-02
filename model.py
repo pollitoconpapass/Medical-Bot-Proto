@@ -3,14 +3,20 @@ from langchain import PromptTemplate  # type: ignore
 from langchain.embeddings import HuggingFaceEmbeddings  # type: ignore
 from langchain.vectorstores import FAISS  # type: ignore
 from langchain.llms import CTransformers  # type: ignore
-from langchain.chains import RetrievalQA  # type: ignore
+from langchain.chains import RetrievalQA, ConversationChain # type: ignore
+from langchain.chains.conversation.memory import ConversationBufferMemory  # type: ignore
 from google.cloud import translate_v2 as translate
+from tenacity import retry, wait_exponential, stop_after_attempt
+from thefuzz import fuzz  # type: ignore
 import chainlit as cl  # type: ignore
 import os
+import re
 
 
+cl.config.debug = True
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/Users/josequispe/Downloads/massive-catfish-411714-884e913749e2.json"
 DB_FAISS_PATH = "vectorstores/db_faiss"
+
 
 
 custom_prompt_template = """Use the following information to answer the user's question.
@@ -67,25 +73,25 @@ def load_llm():
         model_type="llama",
         config={
             'max_new_tokens': 2500,
-            'temperature': 0.01,
+            'temperature': 0.001,  # -> unpredicatbility | Higher = Less predictable "Nonsense"
             'context_length': 3500,
         }
     )
     return llm
 
 
-def retrieval_qa_chain(llm, prompt, db):
+def retrieval_qa_chain(llm, prompt, db):  # -> creates a question-answering chain (retrieval)
     qa_chain = RetrievalQA.from_chain_type(
         llm=llm,
         chain_type="stuff",
-        retriever=db.as_retriever(search_kwargs={"k": 2}),
+        retriever=db.as_retriever(search_kwargs={"k": 2}),  # -> retrieves the top 2 docs from db
         return_source_documents=True,
         chain_type_kwargs={"prompt": prompt}
     )
     return qa_chain
 
 
-def qa_bot():
+def qa_bot():  # -> creates a question-answering bot
     embeddings = HuggingFaceEmbeddings(model_name='distilbert-base-nli-mean-tokens', 
                                        model_kwargs= {'device': 'cpu'})
     db = FAISS.load_local(DB_FAISS_PATH, embeddings)
@@ -96,45 +102,78 @@ def qa_bot():
     return qa
 
 
-def final_result(query):
-    qa_result = qa_bot()
-    response = qa_result({'query': query})
-    return response
+@retry(wait=wait_exponential(), stop=stop_after_attempt(50))
+async def call_chain_with_retry(chain, query, cb):
+    return await chain.acall(query, callbacks=[cb])
 
 
 # --- CHAINLINT CODE ---
+conversation_memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
+
+@cl.password_auth_callback
+def auth_callback(username: str, password: str):
+    user_info = {"username": username, "password": password}
+    
+    if (username, password) == ("admin", "admin") or (username, password) == ("jose", "qhaliadmin1"):
+        user = cl.User(
+            identifier="admin", metadata={"role": "admin", "provider": "credentials",
+                                          "user_info": user_info}
+        )
+        return user
+    else:
+        return None
+
+
 @cl.on_chat_start
 async def start():
-    chain = qa_bot()
-    msg = cl.Message(content="Making qeue in Triage...")
+    app_user = cl.user_session.get("user")
+    
+    chain = qa_bot()  # -> start the bot...
+    msg = cl.Message(content="Making qeue in Triage...")  # -> first try-message
     await msg.send()
 
-    msg.content = "Hi, Welcome to Qhali Medical Bot! What is your query?"
+    msg.content = f"Hi {app_user.identifier}, Welcome to Qhali Medical Bot! What is your query?"  # -> real message
     await msg.update()
-    cl.user_session.set("chain", chain)
+
+    cl.user_session.set("memory", conversation_memory)
+    cl.user_session.set("chain", chain)  # -> sets the question-answering chain
 
 
 @cl.on_message
 async def main(message: cl.Message):
-    chain = cl.user_session.get("chain")
-    cl.user_session.set('answer_sent', False)
+    chain = cl.user_session.get("chain")  # -> gets the question-answering chain
+    cl.user_session.set('answer_sent', False)  # -> set answer sent to false to prevent double answers
 
-    cb = cl.AsyncLangchainCallbackHandler(
+    cb = cl.AsyncLangchainCallbackHandler(  # -> for handling callbacks to get the answer
         stream_final_answer = True, 
         answer_prefix_tokens=["FINAL", "ANSWER"]
     )
 
-    user_language = detect_language(message.content)
-    translated_query = translate_google(message.content, 'en')
+    # Language detection Algorithm:
+    user_language = detect_language(message.content)  
+
+    final_query = message.content
+    if user_language != 'en':
+        final_query = translate_google(message.content, 'en')
     
-    res = await chain.acall(translated_query, callbacks=[cb])
-    answer = res["result"] 
+    #conversation_history = conversation_memory.get("conversation_history", [])
+    conversation_history = conversation_memory.buffer
+    conversation_history.append(final_query)
+    context_aware_query = ' '.join(conversation_history)
 
-    translated_answer = translate_google(answer, user_language)
+    try:
+        res = await chain.acall(final_query, callbacks=[cb]) #  Async. calls the question-answering chain with the final query 
+        answer = res["result"] 
 
-    # Check if the answer has already been sent to avoid repetition
-    if not cl.user_session.get("answer_sent", False) and answer != cl.user_session.get("last_answer"):
-        await cl.Message(content=translated_answer).send()
-        cl.user_session.set("answer_sent", True)
-        cl.user_session.set("last_answer", answer)
-        
+        final_answer = translate_google(answer, user_language) if user_language != 'en' else answer
+
+        # Check if the answer has already been sent to avoid repetition
+        if not cl.user_session.get("answer_sent", False) and answer != cl.user_session.get("last_answer"):
+            await cl.Message(content=final_answer).send()
+            cl.user_session.set("answer_sent", True)
+            cl.user_session.set("last_answer", answer)
+
+        #clear_memory(message.content, conversation_history)
+
+    except Exception as e:
+        print(f"An error occured: {e}")
