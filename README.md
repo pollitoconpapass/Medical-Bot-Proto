@@ -6,7 +6,7 @@
 4. Run the ingest.py file: ```python3 ingest.py```
 5. Go to the Cloud Translate API and create a Service Account Permission
 6. Add the json path file to the ```model.py```
-7. Configure the Flask application with:
+7. Configure the Flask application inside auth folder with:
       - ```export FLASK_APP=app.py```
       - ```export FLASK_DEBUG=1```
       - ```flask run```
