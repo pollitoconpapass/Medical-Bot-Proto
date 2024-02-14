@@ -14,7 +14,8 @@ import re
 
 
 cl.config.debug = True
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/Users/josequispe/Downloads/massive-catfish-411714-884e913749e2.json"
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/Users/jose/Downloads/massive-catfish-411714-89ecb4eed938.json"
+# |_ change it for your own Cloud Translate permissions
 DB_FAISS_PATH = "vectorstores/db_faiss"
 
 
@@ -110,19 +111,6 @@ async def call_chain_with_retry(chain, query, cb):
 # --- CHAINLINT CODE ---
 conversation_memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
 
-@cl.password_auth_callback
-def auth_callback(username: str, password: str):
-    user_info = {"username": username, "password": password}
-    
-    if (username, password) == ("admin", "admin") or (username, password) == ("jose", "qhaliadmin1"):
-        user = cl.User(
-            identifier="admin", metadata={"role": "admin", "provider": "credentials",
-                                          "user_info": user_info}
-        )
-        return user
-    else:
-        return None
-
 
 @cl.on_chat_start
 async def start():
@@ -132,7 +120,7 @@ async def start():
     msg = cl.Message(content="Making qeue in Triage...")  # -> first try-message
     await msg.send()
 
-    msg.content = f"Hi {app_user.identifier}, Welcome to Qhali Medical Bot! What is your query?"  # -> real message
+    msg.content = f"Hi, Welcome to Qhali Medical Bot! What is your query?"  # -> real message
     await msg.update()
 
     cl.user_session.set("memory", conversation_memory)

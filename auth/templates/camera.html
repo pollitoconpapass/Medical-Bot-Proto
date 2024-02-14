@@ -1,0 +1,82 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    camera
+{% endblock %}
+
+{% block main %}
+{% if message == 2 %}
+<H3 style="color: #ff6666; text-align: center; font-family: 'Roboto', sans-serif; position: absolute; border-radius: 0; left: 50%; top: 10px; transform: translateX(-50%);" class="alert-danger">No face detected in the scanned image<br></H3>
+
+{% endif %}
+
+{% if message == 3 %}
+<H3 style="color: #ff6666; text-align: center; font-family: 'Roboto', sans-serif; position: absolute; border-radius: 0; left: 50%; top: 10px; transform: translateX(-50%);" class="alert-danger">Incorrect Face<br></H3>
+
+{% endif %}
+
+<div style="color: #fafafa;">Loading Auto scanning...</div>
+
+<div style="padding: 0px;margin: 0px;width:220;height:240;">
+    <canvas 
+      style="position: absolute; left: 0%;z-index: -1; top:0%;height: 480px;width: 640px;"
+      id="canvas">
+    </canvas>
+
+    <button
+     id="stop" 
+     onclick="stop()" 
+     style="display:none">stop
+    </button>
+
+    <video id="player" style="position: sticky;height: 640;width: 480;z-index: -1;" autoplay></video>
+
+    <form action="/facereg" method="post"  enctype="multipart/form-data" >
+        <input 
+        type="text" 
+        id="pic" 
+        name="pic" 
+        style="display:none">
+    </form>
+</div>
+
+<script>
+  const player = document.getElementById('player');
+  const canvas = document.getElementById('canvas');
+  const context = canvas.getContext('2d');
+
+  const vgaconstraints = {
+    video: {width: {exact: 720}, height: {exact: 480}},
+  };
+
+  function capture(){
+    canvas.style.position="relative";
+    canvas.style.left="0%";
+    canvas.style.top="0%";
+    canvas.style.width = "720px";
+    canvas.style.height = "480px";
+      
+    context.drawImage(player, 0, 0, canvas.width, canvas.height);
+    player.style.display="none";
+
+    // Convert canvas image to base64 and set it as the value of the hidden input field
+    const img = document.getElementById('pic');
+    img.value = canvas.toDataURL('image/png').split(",")[1];
+    
+    // Submit the form automatically
+    document.forms[0].submit();
+  }
+
+  function stop(){
+    player.srcObject.getVideoTracks().forEach(track => track.stop());
+  }
+
+  navigator.mediaDevices.getUserMedia(vgaconstraints)
+    .then((stream) => {
+      // Attach the video stream to the video element and autoplay.
+      player.srcObject = stream;
+      // Call the capture function automatically after 2 seconds
+      setTimeout(capture, 2000);
+    });
+</script>
+{% endblock %}
