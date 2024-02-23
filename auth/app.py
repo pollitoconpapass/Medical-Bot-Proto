@@ -55,25 +55,16 @@ def index():
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
-    """Log user in"""
-
-    # Forget any user_id
     session.clear()
 
-    # User reached route via POST (as by submitting a form via POST)
     if request.method == "POST":
 
-        # Assign inputs to variables
         input_username = request.form.get("username")
         input_password = request.form.get("password")
 
-        # Ensure username was submitted
         if not input_username:
             return render_template("login.html",messager = 1)
 
-
-
-        # Ensure password was submitted
         elif not input_password:
              return render_template("login.html",messager = 2)
 
@@ -81,83 +72,66 @@ def login():
         username = db.execute("SELECT * FROM users WHERE username = :username",
                               username=input_username)
 
-        # Ensure username exists and password is correct
+        # Ensure correct identification
         if len(username) != 1 or not check_password_hash(username[0]["hash"], input_password):
             return render_template("login.html",messager = 3)
 
-        # Remember which user has logged in
-        session["user_id"] = username[0]["id"]
+        session["user_id"] = username[0]["id"] # -> Remember user...
 
-
-
-        # Redirect user to home page
+        config_dir = os.getcwd()
+        command = "chainlit run model.py"  
+        subprocess.run(command, shell=True, cwd=config_dir.replace('auth', ''))
         return redirect("/")
 
-    # User reached route via GET (as by clicking a link or via redirect)
     else:
         return render_template("login.html")
 
 
 @app.route("/logout")
 def logout():
-    """Log user out"""
-
-    # Forget any user_id
     session.clear()
-
-    # Redirect user to login form
     return redirect("/")
 
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
-    """Register user"""
-
-    # User reached route via POST (as by submitting a form via POST)
     if request.method == "POST":
 
-        # Assign inputs to variables
         input_username = request.form.get("username")
         input_password = request.form.get("password")
         input_confirmation = request.form.get("confirmation")
 
-        # Ensure username was submitted
         if not input_username:
             return render_template("register.html",messager = 1)
 
-        # Ensure password was submitted
         elif not input_password:
             return render_template("register.html",messager = 2)
 
-        # Ensure passwsord confirmation was submitted
         elif not input_confirmation:
             return render_template("register.html",messager = 4)
 
         elif not input_password == input_confirmation:
             return render_template("register.html",messager = 3)
 
-        # Query database for username
         username = db.execute("SELECT username FROM users WHERE username = :username",
                               username=input_username)
 
-        # Ensure username is not already taken
-        if len(username) == 1:
+        if len(username) == 1: # -> make sure username not already taken
             return render_template("register.html",messager = 5)
 
-        # Query database to insert new user
         else:
             new_user = db.execute("INSERT INTO users (username, hash) VALUES (:username, :password)",
                                   username=input_username,
                                   password=generate_password_hash(input_password, method="pbkdf2:sha256", salt_length=8),)
 
             if new_user:
-                # Keep newly registered user logged in
                 session["user_id"] = new_user
 
-            # Flash info for the user
             flash(f"Registered as {input_username}")
 
-            # Redirect user to homepage
+            config_dir = os.getcwd() 
+            command = "chainlit run model.py"  
+            subprocess.run(command, shell=True, cwd=config_dir.replace('auth', ''))
             return redirect("/")
 
     # User reached route via GET (as by clicking a link or via redirect)
@@ -201,9 +175,9 @@ def facereg():
                 session["user_id"] = username[0]["id"]
                 print("Access granted")
 
-                config_dir = "/Users/jose/Documents/AI stuff/medical-chatbot/"  # -> change the directory for yours...
+                config_dir = os.getcwd()
                 command = "chainlit run model.py"  
-                subprocess.run(command, shell=True, cwd=config_dir)
+                subprocess.run(command, shell=True, cwd=config_dir.replace('auth', ''))
                 return redirect("/")
             
         else:
